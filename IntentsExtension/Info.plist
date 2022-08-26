@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>
@@ -14,6 +19,7 @@
 			<array>
 				<string>AddToListIntent</string>
 				<string>ApplyCaptureDateIntent</string>
+				<string>ChooseFromListExtendedIntent</string>
 				<string>ClampNumberIntent</string>
 				<string>CombineListsIntent</string>
 				<string>CreateURLIntent</string>
@@ -22,16 +28,25 @@
 				<string>FilterListIntent</string>
 				<string>FormatCurrencyIntent</string>
 				<string>FormatDateDifferenceIntent</string>
+				<string>FormatDurationIntent</string>
+				<string>FormatNumberCompactIntent</string>
 				<string>GenerateUUIDIntent</string>
+				<string>GeoURIIntent</string>
 				<string>GetAudioPlaybackDestinationIntent</string>
 				<string>GetBatteryStateIntent</string>
+				<string>GetDeviceOrientationIntent</string>
 				<string>GetEmojisIntent</string>
 				<string>GetFileIconIntent</string>
 				<string>GetFilePathIntent</string>
 				<string>GetMusicPlaylistsIntent</string>
+				<string>GetQueryItemValueFromURLIntent</string>
+				<string>GetQueryItemsFromURLAsDictionaryIntent</string>
+				<string>GetQueryItemsFromURLIntent</string>
+				<string>GetRelatedWordsIntent</string>
 				<string>GetRunningAppsIntent</string>
 				<string>GetTitleOfURLIntent</string>
 				<string>GetUniformTypeIdentifierIntent</string>
+				<string>GetUnsplashImageIntent</string>
 				<string>GetUserDetailsIntent</string>
 				<string>HapticFeedbackIntent</string>
 				<string>HideShortcutsAppIntent</string>
@@ -39,8 +54,14 @@
 				<string>IsBluetoothOnIntent</string>
 				<string>IsConnectedToVPNIntent</string>
 				<string>IsDarkModeIntent</string>
+				<string>IsDeviceOrientationIntent</string>
 				<string>IsLowPowerModeIntent</string>
+				<string>IsOnlineIntent</string>
+				<string>IsReachableIntent</string>
 				<string>IsSilentModeOnIntent</string>
+				<string>IsWiFiOnIntent</string>
+				<string>MergeDictionariesIntent</string>
+				<string>PrettyPrintDictionariesIntent</string>
 				<string>RandomBooleanIntent</string>
 				<string>RandomColorIntent</string>
 				<string>RandomDateTimeIntent</string>
@@ -54,16 +75,20 @@
 				<string>RemoveFromListIntent</string>
 				<string>RemoveNonPrintableCharactersIntent</string>
 				<string>ReverseListIntent</string>
+				<string>RoundNumberToMultipleIntent</string>
 				<string>SampleColorIntent</string>
+				<string>ScanDocumentsIntent</string>
 				<string>SendFeedbackIntent</string>
 				<string>SetFileCreationModificationDateIntent</string>
 				<string>ShuffleListIntent</string>
 				<string>SortListIntent</string>
 				<string>SpellOutNumberIntent</string>
+				<string>TransformListsIntent</string>
 				<string>TransformTextIntent</string>
 				<string>TransformTextWithJavaScriptIntent</string>
 				<string>TrimWhitespaceIntent</string>
 				<string>TruncateListIntent</string>
+				<string>TruncateTextIntent</string>
 				<string>UnixTimeToDateIntent</string>
 				<string>WriteTextIntent</string>
 			</array>

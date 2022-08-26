@@ -131,6 +131,52 @@ final class IntentHandler: INExtension {
 		case is GetFileIconIntent:
 			return GetFileIconIntentHandler()
 		#endif
+		case is TransformListsIntent:
+			return TransformListsIntentHandler()
+		case is TruncateTextIntent:
+			return TruncateTextIntentHandler()
+		case is RoundNumberToMultipleIntent:
+			return RoundNumberToMultipleIntentHandler()
+		case is IsOnlineIntent:
+			return IsOnlineIntentHandler()
+		case is GeoURIIntent:
+			return GeoURIIntentHandler()
+		case is IsReachableIntent:
+			return IsReachableIntentHandler()
+		case is PrettyPrintDictionariesIntent:
+			return PrettyPrintDictionariesIntentHandler()
+		case is MergeDictionariesIntent:
+			return MergeDictionariesIntentHandler()
+		#if canImport(UIKit)
+		case is ScanDocumentsIntent:
+			return ScanDocumentsIntentHandler()
+		#endif
+		case is FormatDurationIntent:
+			return FormatDurationIntentHandler()
+		case is GetUnsplashImageIntent:
+			return GetUnsplashImageIntentHandler()
+		case is ChooseFromListExtendedIntent:
+			return ChooseFromListExtendedIntentHandler()
+		#if canImport(AppKit)
+		case is IsWiFiOnIntent:
+			return IsWiFiOnIntentHandler()
+		#endif
+		case is GetRelatedWordsIntent:
+			return GetRelatedWordsIntentHandler()
+		case is GetQueryItemValueFromURLIntent:
+			return GetQueryItemValueFromURLIntentHandler()
+		case is GetQueryItemsFromURLIntent:
+			return GetQueryItemsFromURLIntentHandler()
+		case is GetQueryItemsFromURLAsDictionaryIntent:
+			return GetQueryItemsFromURLAsDictionaryIntentHandler()
+		#if canImport(UIKit)
+		case is GetDeviceOrientationIntent:
+			return GetDeviceOrientationIntentHandler()
+		case is IsDeviceOrientationIntent:
+			return IsDeviceOrientationIntentHandler()
+		#endif
+		case is FormatNumberCompactIntent:
+			return FormatNumberCompactIntentHandler()
 		default:
 			assertionFailure("No handler for this intent")
 			return nil

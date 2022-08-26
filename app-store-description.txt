@@ -2,6 +2,8 @@ Supercharge your shortcuts with lots of useful actions.
 
 It provides additional actions for the Shortcuts app.
 
+The actions are not able to run on Apple Watch or HomePod.
+
 The app is free without ads because I love making apps. Consider leaving a nice review.
 
 
@@ -9,39 +11,62 @@ The app is free without ads because I love making apps. Consider leaving a nice 
 
 - Add to List
 - Apply Capture Date
+- Choose from List (Extended)
 - Clamp Number
 - Combine Lists
+- Convert Date to Unix Time
+- Convert Location to Geo URI
+- Convert Unix Time to Date
+- Create Color Image
 - Create URL
-- Date to Unix Time
 - Edit URL
 - Filter List
 - Format Currency
 - Format Date Difference
+- Format Duration
+- Format Number — Compact
+- Generate CSV
+- Generate Haptic Feedback (iOS-only)
 - Generate UUID
 - Get Audio Playback Destination (iOS-only)
 - Get Battery State
+- Get Device Orientation (iOS-only)
 - Get Emojis
 - Get File Icon (macOS-only)
 - Get File Path
 - Get Music Playlists (iOS-only)
+- Get Query Item Value from URL
+- Get Query Items from URL
+- Get Query Items from URL as Dictionary
+- Get Random Boolean
+- Get Random Color
+- Get Random Date and Time
+- Get Random Emoticon
+- Get Random Floating-Point Number
+- Get Random Text
+- Get Related Words
 - Get Running Apps (macOS-only)
+- Get Symbol Image
 - Get Title of URL
 - Get Uniform Type Identifier
+- Get Unsplash Image
 - Get User Details
-- Haptic Feedback (iOS-only)
 - Hide Shortcuts App
 - Is Audio Playing (iOS-only)
 - Is Bluetooth On
 - Is Connected to VPN (iOS-only)
 - Is Dark Mode On
+- Is Device Orientation (iOS-only)
 - Is Low Power Mode On
+- Is Online
+- Is Reachable
+- Is Screen Locked (macOS-only)
 - Is Silent Mode On (iOS-only)
-- Random Boolean
-- Random Color
-- Random Date and Time
-- Random Emoticon
-- Random Floating-Point Number
-- Random Text
+- Is Wi-Fi On (macOS-only)
+- Merge Dictionaries
+- Parse CSV
+- Parse JSON5
+- Pretty Print Dictionaries
 - Remove Duplicate Lines
 - Remove Duplicates from List
 - Remove Emojis
@@ -49,16 +74,21 @@ The app is free without ads because I love making apps. Consider leaving a nice 
 - Remove from List
 - Remove Non-Printable Characters
 - Reverse List
+- Round Number to Multiple
 - Sample Color from Screen (macOS-only)
+- Scan Documents (iOS-only)
+- Scan QR Codes in Image
 - Set Creation and Modification Date of File
 - Shuffle List
 - Sort List
 - Spell Out Number
+- Transcribe Audio
+- Transform Lists
 - Transform Text
 - Transform Text with JavaScript
 - Trim Whitespace
 - Truncate List
-- Unix Time to Date
+- Truncate Text
 - Write or Edit Text
 
 

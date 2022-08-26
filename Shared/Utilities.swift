@@ -6,11 +6,21 @@ import UniformTypeIdentifiers
 import Intents
 import IntentsUI
 import CoreBluetooth
+import CoreLocation
 import Contacts
 import AudioToolbox
+import SystemConfiguration
+import Network
+import TabularData
+import Speech
+import NaturalLanguage
+import JavaScriptCore
+import Regex
+import CoreImage.CIFilterBuiltins
 
 #if canImport(AppKit)
 import IOKit.ps
+import CoreWLAN
 
 typealias XColor = NSColor
 typealias XFont = NSFont
@@ -19,7 +29,11 @@ typealias XPasteboard = NSPasteboard
 typealias XApplication = NSApplication
 typealias XApplicationDelegate = NSApplicationDelegate
 typealias XApplicationDelegateAdaptor = NSApplicationDelegateAdaptor
+typealias XScreen = NSScreen
 #elseif canImport(UIKit)
+import VisionKit
+import CoreMotion
+
 typealias XColor = UIColor
 typealias XFont = UIFont
 typealias XImage = UIImage
@@ -27,6 +41,7 @@ typealias XPasteboard = UIPasteboard
 typealias XApplication = UIApplication
 typealias XApplicationDelegate = UIApplicationDelegate
 typealias XApplicationDelegateAdaptor = UIApplicationDelegateAdaptor
+typealias XScreen = UIScreen
 #endif
 
 
@@ -71,7 +86,7 @@ func delay(seconds: TimeInterval, closure: @escaping () -> Void) {
 
 
 enum SSApp {
-	static let id = Bundle.main.bundleIdentifier!
+	static let idString = Bundle.main.bundleIdentifier!
 	static let name = Bundle.main.object(forInfoDictionaryKey: kCFBundleNameKey as String) as! String
 	static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as! String
 	static let build = Bundle.main.object(forInfoDictionaryKey: kCFBundleVersionKey as String) as! String
@@ -130,7 +145,7 @@ enum SSApp {
 
 	private static func getFeedbackMetadata() -> String {
 		"""
-		\(SSApp.name) \(SSApp.versionWithBuild) - \(SSApp.id)
+		\(SSApp.name) \(SSApp.versionWithBuild) - \(SSApp.idString)
 		\(Device.operatingSystemString)
 		\(Device.modelIdentifier)
 		"""
@@ -151,11 +166,11 @@ enum SSApp {
 		email: String,
 		message: String
 	) async throws {
-		let endpoint = URL(string: "https://formcarry.com/s/UBfgr97yfY")!
+		let endpoint = URL("https://formcarry.com/s/UBfgr97yfY")
 
 		let parameters = [
 			"_gotcha": nil, // Spam prevention.
-			"timestamp": "\(Date.now.timeIntervalSince1970)",
+			"timestamp": "\(Int(Date.now.timeIntervalSince1970))",
 			"product": SSApp.name,
 			"metadata": getFeedbackMetadata(),
 			"email": email.lowercased(),
@@ -187,6 +202,13 @@ extension NSAppearance {
 	var isDarkMode: Bool { bestMatch(from: [.darkAqua, .aqua]) == .darkAqua }
 }
 #endif
+
+
+extension CGSize {
+	static func * (lhs: Self, rhs: Double) -> Self {
+		.init(width: lhs.width * rhs, height: lhs.height * rhs)
+	}
+}
 
 
 extension Data {
@@ -359,6 +381,25 @@ enum Device {
 		return UIScreen.main.bounds.height < 700
 		#endif
 	}()
+
+	#if canImport(Quartz)
+	// `CGSessionCopyCurrentDictionary()` returns `nil` in an app extension.
+	@available(macOSApplicationExtension, unavailable)
+	static var isScreenLocked: Bool {
+		let key = String("dekcoLsIneercSnoisseSSGC".reversed())
+		let dictionary = CGSessionCopyCurrentDictionary() as? [String: Any]
+		return dictionary?[key] as? Bool ?? false
+	}
+	#endif
+
+	#if canImport(CoreWLAN)
+	/**
+	Whether Wi-Fi is available and powered on.
+	*/
+	static var isWiFiOn: Bool {
+		CWWiFiClient.shared().interface()?.powerOn() ?? false
+	}
+	#endif
 }
 
 
@@ -487,47 +528,129 @@ extension Device {
 }
 
 
-private func escapeQuery(_ query: String) -> String {
-	// From RFC 3986
-	let generalDelimiters = ":#[]@"
-	let subDelimiters = "!$&'()*+,;="
-
-	var allowedCharacters = CharacterSet.urlQueryAllowed
-	allowedCharacters.remove(charactersIn: generalDelimiters + subDelimiters)
-	return query.addingPercentEncoding(withAllowedCharacters: allowedCharacters) ?? query
+extension Dictionary {
+	func compactValues<T>() -> [Key: T] where Value == T? {
+		// TODO: Make this `compactMapValues(\.self)` when https://github.com/apple/swift/issues/55343 is fixed.
+		compactMapValues { $0 }
+	}
 }
 
 
-extension Dictionary where Key: ExpressibleByStringLiteral, Value: ExpressibleByStringLiteral {
-	var asQueryItems: [URLQueryItem] {
+extension CharacterSet {
+	/**
+	Characters allowed to be unescaped in an URL.
+
+	https://tools.ietf.org/html/rfc3986#section-2.3
+	*/
+	static let urlUnreservedRFC3986 = CharacterSet(charactersIn: "-._~")
+		.union(asciiLettersAndNumbers)
+}
+
+
+private func escapeQueryComponent(_ query: String) -> String {
+	query.addingPercentEncoding(withAllowedCharacters: .urlUnreservedRFC3986)!
+}
+
+
+extension Dictionary where Key == String {
+	/**
+	This correctly escapes items. See `escapeQueryComponent`.
+	*/
+	var toQueryItems: [URLQueryItem] {
 		map {
 			URLQueryItem(
-				name: escapeQuery($0 as! String),
-				value: escapeQuery($1 as! String)
+				name: escapeQueryComponent($0),
+				value: escapeQueryComponent("\($1)")
 			)
 		}
 	}
 
-	var asQueryString: String {
+	var toQueryString: String {
 		var components = URLComponents()
-		components.queryItems = asQueryItems
+		components.queryItems = toQueryItems
 		return components.query!
 	}
 }
 
 
 extension URLComponents {
-	mutating func addDictionaryAsQuery(_ dict: [String: String]) {
-		percentEncodedQuery = dict.asQueryString
+	mutating func addDictionaryAsQuery(_ dictionary: [String: String]) {
+		percentEncodedQuery = dictionary.toQueryString
+	}
+}
+
+
+typealias QueryDictionary = [String: String]
+
+
+extension URLComponents {
+	/**
+	This correctly escapes items. See `escapeQueryComponent`.
+	*/
+	var queryDictionary: QueryDictionary {
+		get {
+			queryItems?.toDictionary { ($0.name, $0.value) }.compactValues() ?? [:]
+		}
+		set {
+			// Using `percentEncodedQueryItems` instead of `queryItems` since the query items are already custom-escaped. See `escapeQueryComponent`.
+			percentEncodedQueryItems = newValue.toQueryItems
+		}
 	}
 }
 
 
 extension URL {
-	func addingDictionaryAsQuery(_ dict: [String: String]) -> Self {
+	var queryItems: [URLQueryItem] {
+		guard let components = URLComponents(url: self, resolvingAgainstBaseURL: false) else {
+			return []
+		}
+
+		return components.queryItems ?? []
+	}
+
+	var queryDictionary: QueryDictionary {
+		guard let components = URLComponents(url: self, resolvingAgainstBaseURL: false) else {
+			return [:]
+		}
+
+		return components.queryDictionary
+	}
+
+	func addingDictionaryAsQuery(_ dictionary: [String: String]) -> Self {
 		var components = URLComponents(url: self, resolvingAgainstBaseURL: false)!
-		components.addDictionaryAsQuery(dict)
+		components.addDictionaryAsQuery(dictionary)
 		return components.url ?? self
+	}
+
+	/**
+	Returns `self` with the given `URLQueryItem` appended.
+	*/
+	func appendingQueryItem(_ queryItem: URLQueryItem) -> Self {
+		guard var components = URLComponents(url: self, resolvingAgainstBaseURL: false) else {
+			return self
+		}
+
+		if components.queryItems == nil {
+			components.queryItems = []
+		}
+
+		components.queryItems?.append(queryItem)
+
+		return components.url ?? self
+	}
+
+	/**
+	Returns `self` with the given `name` and `value` appended if the `value` is not `nil`.
+	*/
+	func appendingQueryItem(name: String, value: String?) -> Self {
+		appendingQueryItem(URLQueryItem(name: name, value: value))
+	}
+
+	/**
+	Get the value of the first query item with the given name.
+	*/
+	func queryItemValue(forName name: String) -> String? {
+		queryItems.first { $0.name == name }?.value
 	}
 }
 
@@ -803,15 +926,17 @@ extension NSImage {
 	static func color(
 		_ color: NSColor,
 		size: CGSize,
+		scale: Double,
 		borderWidth: Double = 0,
 		borderColor: NSColor? = nil,
 		cornerRadius: Double? = nil
 	) -> Self {
-		Self(size: size, flipped: false) { bounds in
+		Self(size: size * scale, flipped: false) { bounds in
 			NSGraphicsContext.current?.imageInterpolation = .high
 
 			guard let cornerRadius = cornerRadius else {
-				color.drawSwatch(in: bounds)
+				color.set()
+				bounds.fill()
 				return true
 			}
 
@@ -847,14 +972,11 @@ extension UIImage {
 	static func color(
 		_ color: UIColor,
 		size: CGSize,
-		scale: Double? = nil
+		scale: Double
 	) -> UIImage {
 		let format = UIGraphicsImageRendererFormat()
 		format.opaque = true
-
-		if let scale = scale {
-			format.scale = scale
-		}
+		format.scale = scale
 
 		return UIGraphicsImageRenderer(size: size, format: format).image { rendererContext in
 			color.setFill()
@@ -897,6 +1019,13 @@ extension SSApp {
 		}
 
 		execute()
+	}
+}
+
+
+extension RangeReplaceableCollection {
+	mutating func prepend(_ newElement: Element) {
+		insert(newElement, at: startIndex)
 	}
 }
 
@@ -1038,8 +1167,14 @@ extension Date {
 	```
 	*/
 	static func random(in range: ClosedRange<Self>) -> Self {
-		let timeIntervalRange = range.lowerBound.timeIntervalSinceNow...range.upperBound.timeIntervalSinceNow
-		return Self(timeIntervalSinceNow: .random(in: timeIntervalRange))
+		Self(
+			timeIntervalSinceNow: .random(
+				in: .fromGraceful(
+					range.lowerBound.timeIntervalSinceNow,
+					range.upperBound.timeIntervalSinceNow
+				)
+			)
+		)
 	}
 }
 
@@ -1188,6 +1323,41 @@ extension String {
 }
 
 
+extension Sequence where Element: Hashable {
+	/**
+	Returns the unique elements in a sequence.
+
+	```
+	[1, 2, 1].removingDuplicates()
+	//=> [1, 2]
+	```
+	*/
+	func removingDuplicates() -> [Element] {
+		var seen = Set<Element>()
+		return filter { seen.insert($0).inserted }
+	}
+}
+
+
+extension Sequence where Element: Equatable {
+	/**
+	Returns the unique elements in a sequence.
+
+	```
+	[1, 2, 1].removingDuplicates()
+	//=> [1, 2]
+	```
+	*/
+	func removingDuplicates() -> [Element] {
+		reduce(into: []) { result, element in
+			if !result.contains(element) {
+				result.append(element)
+			}
+		}
+	}
+}
+
+
 extension Sequence {
 	/**
 	Returns an array with duplicates removed by checking for duplicates based on the given key path.
@@ -1293,6 +1463,13 @@ extension String {
 }
 
 
+extension String {
+	var firstLine: Self {
+		components(separatedBy: .newlines).first ?? self
+	}
+}
+
+
 extension Comparable {
 	/**
 	```
@@ -1389,6 +1566,36 @@ extension UIColor {
 }
 // swiftlint:enable no_cgfloat
 #endif
+
+
+extension XColor {
+	convenience init(hex: Int, alpha: Double = 1) {
+		self.init(
+			red: Double((hex >> 16) & 0xFF) / 255,
+			green: Double((hex >> 8) & 0xFF) / 255,
+			blue: Double(hex & 0xFF) / 255,
+			alpha: alpha
+		)
+	}
+
+	convenience init?(hexString: String, alpha: Double = 1) {
+		var string = hexString
+
+		if hexString.hasPrefix("#") {
+			string = String(hexString.dropFirst())
+		}
+
+		if string.count == 3 {
+			string = string.map { "\($0)\($0)" }.joined()
+		}
+
+		guard let hex = Int(string, radix: 16) else {
+			return nil
+		}
+
+		self.init(hex: hex, alpha: alpha)
+	}
+}
 
 
 extension XColor {
@@ -1705,10 +1912,8 @@ protocol Option: RawRepresentable, Hashable, CaseIterable {}
 extension Set where Element: Option {
 	var rawValue: Int {
 		var rawValue = 0
-		for (index, element) in Element.allCases.enumerated() {
-			if contains(element) {
-				rawValue |= (1 << index)
-			}
+		for (index, element) in Element.allCases.enumerated() where contains(element) {
+			rawValue |= (1 << index)
 		}
 
 		return rawValue
@@ -1971,6 +2176,17 @@ extension URL {
 }
 
 
+extension URL {
+	/**
+	Check whether the given string is a valid URL scheme.
+	*/
+	static func isValidScheme(_ scheme: String) -> Bool {
+		scheme.first?.isASCIILetterOrNumber == true
+			&& scheme.hasOnlyCharacters(in: .urlSchemeAllowed)
+	}
+}
+
+
 extension CGImage {
 	/**
 	Get metadata from an image on disk.
@@ -2000,6 +2216,39 @@ extension CGImage {
 }
 
 
+#if canImport(AppKit)
+extension NSBitmapImageRep {
+	func pngData() -> Data? {
+		representation(using: .png, properties: [:])
+	}
+
+	func jpegData(compressionQuality: Double) -> Data? {
+		representation(using: .jpeg, properties: [.compressionFactor: compressionQuality])
+	}
+}
+
+extension Data {
+	var bitmap: NSBitmapImageRep? { NSBitmapImageRep(data: self) }
+}
+
+extension NSImage {
+	/**
+	UIKit polyfill.
+	*/
+	func pngData() -> Data? {
+		tiffRepresentation?.bitmap?.pngData()
+	}
+
+	/**
+	UIKit polyfill.
+	*/
+	func jpegData(compressionQuality: Double) -> Data? {
+		tiffRepresentation?.bitmap?.jpegData(compressionQuality: compressionQuality)
+	}
+}
+#endif
+
+
 extension URL {
 	/**
 	Creates a unique temporary directory and returns the URL.
@@ -2022,9 +2271,9 @@ extension URL {
 	/**
 	Copy the file at the current URL to a unique temporary directory and return the new URL.
 	*/
-	func copyToUniqueTemporaryDirectory() throws -> Self {
+	func copyToUniqueTemporaryDirectory(filename: String? = nil) throws -> Self {
 		let destinationUrl = try Self.uniqueTemporaryDirectory(appropriateFor: self)
-			.appendingPathComponent(lastPathComponent, isDirectory: false)
+			.appendingPathComponent(filename ?? lastPathComponent, isDirectory: false)
 
 		try FileManager.default.copyItem(at: self, to: destinationUrl)
 
@@ -2102,6 +2351,40 @@ extension INFile {
 
 
 extension INFile {
+	var filenameWithoutExtension: String {
+		filename.removingFileExtension()
+	}
+}
+
+
+extension INFile {
+	convenience init(
+		data: Data,
+		filename: String,
+		contentType: UTType?
+	) {
+		self.init(
+			data: data,
+			filename: filename,
+			typeIdentifier: contentType?.identifier
+		)
+	}
+
+	convenience init(
+		fileURL: URL,
+		filename: String,
+		contentType: UTType?
+	) {
+		self.init(
+			fileURL: fileURL,
+			filename: filename,
+			typeIdentifier: contentType?.identifier
+		)
+	}
+}
+
+
+extension INFile {
 	/**
 	Write the data to a unique temporary path and return the `URL`.
 	*/
@@ -2143,7 +2426,7 @@ extension URL {
 		INFile(
 			fileURL: self,
 			filename: lastPathComponent,
-			typeIdentifier: contentType?.identifier
+			contentType: contentType
 		)
 	}
 }
@@ -2153,23 +2436,34 @@ extension XImage {
 	/**
 	Create a `INFile` from the image.
 	*/
-	var toINFile: INFile? {
-		#if canImport(AppKit)
-		try? tiffRepresentation?
-			.writeToUniqueTemporaryFile(contentType: .tiff)
-			.toINFile
-		#elseif canImport(UIKit)
+	func toINFile(filename: String? = nil) -> INFile? {
 		try? pngData()?
-			.writeToUniqueTemporaryFile(contentType: .png)
+			.writeToUniqueTemporaryFile(filename: filename ?? "file", contentType: .png)
 			.toINFile
-		#endif
+	}
+}
+
+
+extension Data {
+	/**
+	Create a `INFile` from the data.
+	*/
+	func toINFile(
+		contentType: UTType,
+		filename: String? = nil
+	) -> INFile {
+		.init(
+			data: self,
+			filename: filename ?? "file",
+			contentType: contentType
+		)
 	}
 }
 
 
 extension Sequence {
 	func compact<T>() -> [T] where Element == T? {
-		// TODO: Make this `compactMap(\.self)` when https://bugs.swift.org/browse/SR-12897 is fixed.
+		// TODO: Make this `compactMap(\.self)` when https://github.com/apple/swift/issues/55343 is fixed.
 		compactMap { $0 }
 	}
 }
@@ -2177,7 +2471,7 @@ extension Sequence {
 
 extension Sequence where Element: Sequence {
 	func flatten() -> [Element.Element] {
-		// TODO: Make this `flatMap(\.self)` when https://bugs.swift.org/browse/SR-12897 is fixed.
+		// TODO: Make this `flatMap(\.self)` when https://github.com/apple/swift/issues/55343 is fixed.
 		flatMap { $0 }
 	}
 }
@@ -2208,11 +2502,24 @@ extension URLResponse {
 
 
 extension HTTPURLResponse {
-	struct StatusCodeError: LocalizedError {
-		let statusCode: Int
+	// Note: For some reason, this just shows up as "operation could not be completed". The only way I found to show a proper message was "CustomNSError". (macOS 12.2)
+//	struct StatusCodeError: LocalizedError {
+//		let statusCode: Int
+//
+//		var errorDescription: String {
+//			"Request failed: \(HTTPURLResponse.localizedString(forStatusCode: errorCode)) (\(errorCode))"
+//		}
+//	}
 
-		var errorDescription: String {
-			HTTPURLResponse.localizedString(forStatusCode: statusCode)
+	struct StatusCodeError: CustomNSError {
+		static var domain = "HTTPURLResponse.StatusCodeError"
+
+		let errorCode: Int
+
+		var errorUserInfo: [String: Any] {
+			[
+				NSLocalizedDescriptionKey: "Request failed: \(HTTPURLResponse.localizedString(forStatusCode: errorCode)) (\(errorCode))"
+			]
 		}
 	}
 
@@ -2226,7 +2533,7 @@ extension HTTPURLResponse {
 			return
 		}
 
-		throw StatusCodeError(statusCode: statusCode)
+		throw StatusCodeError(errorCode: statusCode)
 	}
 }
 
@@ -2243,6 +2550,12 @@ extension URLRequest {
 	enum ContentType {
 		static let json = "application/json"
 	}
+
+	enum UserAgent {
+		static let `default` = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15"
+	}
+
+	typealias Headers = [String: String]
 
 	static func json(
 		_ method: Method,
@@ -2273,6 +2586,29 @@ extension URLRequest {
 		)
 	}
 
+	init(
+		method: Method,
+		url: URL,
+		contentType: String? = nil,
+		headers: Headers = [:],
+		timeout: TimeInterval = 60
+	) {
+		self.init(url: url, timeoutInterval: timeout)
+		self.method = method
+		self.allHTTPHeaderFields = headers
+
+		if let contentType = contentType {
+			addContentType(contentType)
+		}
+	}
+
+	var userAgent: String? {
+		get { value(forHTTPHeaderField: "User-Agent") }
+		set {
+			setValue(newValue, forHTTPHeaderField: "User-Agent")
+		}
+	}
+
 	/**
 	Strongly-typed version of `httpMethod`.
 	*/
@@ -2288,14 +2624,14 @@ extension URLRequest {
 			httpMethod = newValue.rawValue
 		}
 	}
+
+	mutating func addContentType(_ contentType: String) {
+		addValue(contentType, forHTTPHeaderField: "Content-Type")
+	}
 }
 
 
 extension URLSession {
-	enum JSONRequestError: Error {
-		case nonObject
-	}
-
 	/**
 	Send a JSON request.
 
@@ -2308,16 +2644,12 @@ extension URLSession {
 	) async throws -> ([String: Any], URLResponse) {
 		let request = try URLRequest.json(method, url: url, parameters: parameters)
 		let (data, response) = try await data(for: request)
-
 		try response.throwIfHTTPResponseButNotSuccessStatusCode()
 
-		let json = try JSONSerialization.jsonObject(with: data, options: [])
-
-		guard let dictionary = json as? [String: Any] else {
-			throw JSONRequestError.nonObject
-		}
-
-		return (dictionary, response)
+		return (
+			try data.jsonToDictionary(),
+			response
+		)
 	}
 }
 
@@ -2347,7 +2679,7 @@ extension NSError {
 		}
 
 		return .init(
-			domain: domainPostfix.map { "\(SSApp.id) - \($0)" } ?? SSApp.id,
+			domain: domainPostfix.map { "\(SSApp.idString) - \($0)" } ?? SSApp.idString,
 			code: 1, // This is what Swift errors end up as.
 			userInfo: userInfo
 		)
@@ -2373,7 +2705,7 @@ enum Bluetooth {
 			}
 
 			let recoverySuggestion = OS.current == .macOS
-				? "You can grant access in “System Preferences › Security & Privacy › Bluetooth”."
+				? "You can grant access in “System Settings › Privacy & Security › Bluetooth”."
 				: "You can grant access in “Settings › \(SSApp.name)”."
 
 			let error = NSError.appError("No access to Bluetooth.", recoverySuggestion: recoverySuggestion)
@@ -2439,9 +2771,12 @@ extension Error {
 
 
 extension String {
-	func copyToPasteboard() {
+	/**
+	- Parameter currentHostOnly: The pasteboard contents are available only on the current device, and not on any other devices. This parameter is only used on macOS.
+	*/
+	func copyToPasteboard(currentHostOnly: Bool = false) {
 		#if canImport(AppKit)
-		NSPasteboard.general.clearContents()
+		NSPasteboard.general.prepareForNewContents(with: currentHostOnly ? .currentHostOnly : [])
 		NSPasteboard.general.setString(self, forType: .string)
 		#elseif canImport(UIKit)
 		UIPasteboard.general.string = self
@@ -2455,11 +2790,25 @@ extension UIPasteboard {
 	/**
 	AppKit polyfill.
 	*/
-	func clearContents() {
+	func prepareForNewContents() {
 		string = ""
 	}
 }
 #endif
+
+
+extension XPasteboard {
+	/**
+	Universal version.
+	*/
+	func prepareForNewContents(currentHostOnly: Bool) {
+		#if canImport(AppKit)
+		prepareForNewContents(with: currentHostOnly ? .currentHostOnly : [])
+		#else
+		string = ""
+		#endif
+	}
+}
 
 
 extension View {
@@ -2707,16 +3056,13 @@ extension CNContactStore {
 			return nil
 		}
 
-		return containers
-			.lazy
-			.compactMap {
-				guard let identifier = $0.value(forKey: "meIdentifier") as? String else {
-					return nil
-				}
-
-				return Int(identifier)
+		return containers.firstNonNil {
+			guard let identifier = $0.value(forKey: "meIdentifier") as? String else {
+				return nil
 			}
-			.first
+
+			return Int(identifier)
+		}
 	}
 
 	/**
@@ -3025,6 +3371,26 @@ extension Sequence {
 
 extension Sequence {
 	/**
+	```
+	[(1, "a"), (nil, "b")].toDictionary { ($1, $0) }
+	//=> ["a": 1, "b": nil]
+	```
+	*/
+	func toDictionary<Key: Hashable, Value>(withKey pickKeyValue: (Element) -> (Key, Value?)) -> [Key: Value?] {
+		var dictionary = [Key: Value?]()
+
+		for element in self {
+			let newElement = pickKeyValue(element)
+			dictionary[newElement.0] = newElement.1
+		}
+
+		return dictionary
+	}
+}
+
+
+extension Sequence {
+	/**
 	Convert a sequence to a dictionary by mapping over the values and using the returned key as the key and the current sequence element as value.
 
 	If the the returned key is `nil`, the element is skipped.
@@ -3218,9 +3584,9 @@ extension Device {
 
 #if canImport(AppKit)
 extension NSImage {
-	var inImage: INImage {
-		// `tiffRepresentation` is very unlikely to fail, so we just fall back to an empty image.
-		INImage(imageData: tiffRepresentation ?? Data())
+	var toINImage: INImage {
+		// `pngData` is very unlikely to fail, so we just fall back to an empty image.
+		INImage(imageData: pngData() ?? Data())
 	}
 }
 #elseif canImport(UIKit) && canImport(IntentsUI)
@@ -3230,6 +3596,1279 @@ extension UIImage {
 
 	- Important: If you're using this in an intent handler extension, don't forget to manually add the `IntentsUI` framework.
 	*/
-	var inImage: INImage { INImage(uiImage: self) }
+	var toINImage: INImage { INImage(uiImage: self) }
 }
 #endif
+
+
+extension StringProtocol {
+	var trimmed: String {
+		trimmingCharacters(in: .whitespacesAndNewlines)
+	}
+
+	var trimmedLeading: String {
+		replacingOccurrences(of: #"^\s+"#, with: "", options: .regularExpression)
+	}
+
+	var trimmedTrailing: String {
+		replacingOccurrences(of: #"\s+$"#, with: "", options: .regularExpression)
+	}
+}
+
+
+extension CharacterSet {
+	func contains(_ character: Character) -> Bool {
+		guard
+			character.unicodeScalars.count == 1,
+			let firstUnicodeScalar = character.unicodeScalars.first
+		else {
+			return false
+		}
+
+		return contains(firstUnicodeScalar)
+	}
+}
+
+
+extension CharacterSet {
+	static let lowercaseASCIILetters = Self(charactersIn: "a"..."z")
+	static let uppercaseASCIILetters = Self(charactersIn: "A"..."Z")
+	static let asciiLetters = lowercaseLetters.union(uppercaseLetters)
+	static let asciiNumbers = Self(charactersIn: "0"..."9")
+	static let asciiLettersAndNumbers = asciiLetters.union(asciiNumbers)
+
+	// https://stackoverflow.com/a/3641782/64949
+	static let urlSchemeAllowed = Self(charactersIn: "+-.")
+		.union(asciiLettersAndNumbers)
+}
+
+
+extension StringProtocol {
+	/**
+	Check that the string only contains characters in the given `CharacterSet`.
+	*/
+	func hasOnlyCharacters(in characterSet: CharacterSet) -> Bool {
+		rangeOfCharacter(from: characterSet.inverted) == nil
+	}
+}
+
+
+extension Character {
+	var isASCIILetter: Bool { isASCII && isLetter }
+	var isLowercaseASCIILetter: Bool { isASCIILetter && isLowercase }
+	var isUppercaseASCIILetter: Bool { isASCIILetter && isUppercase }
+	var isASCIINumber: Bool { isASCII && isNumber }
+	var isASCIILetterOrNumber: Bool { isASCII && (isASCIILetter || isASCIINumber) }
+}
+
+
+extension StringProtocol {
+	/**
+	Truncate the string to the given maximum length including the truncation indicator.
+
+	- Note: The resulting string might be shorter than the given number depending on whitespace and punctation.
+
+	```
+	"Unicorn".truncating(to: 4)
+	//=> "Uni…"
+	```
+	*/
+	func truncating(
+		to maxLength: Int,
+		truncationIndicator: String = "…"
+	) -> String {
+		assert(maxLength >= 0, "maxLength should not be negative")
+
+		guard maxLength > 0 else {
+			return ""
+		}
+
+		guard count > maxLength else {
+			return String(self)
+		}
+
+		// Edge-case
+		guard maxLength > truncationIndicator.count else {
+			return String(truncationIndicator.prefix(maxLength))
+		}
+
+		var truncatedString = prefix(maxLength - truncationIndicator.count)
+
+		// If the truncated string ends with a punctation character, we strip it to make it look better.
+		if
+			let lastCharacter = truncatedString.last,
+			CharacterSet.punctuationCharacters.contains(lastCharacter)
+		{
+			truncatedString = truncatedString.dropLast()
+		}
+
+		return "\(truncatedString.trimmedTrailing)\(truncationIndicator)"
+	}
+}
+
+
+extension FloatingPoint {
+	/**
+	Round the number to the nearest multiple of the given number.
+
+	```
+	23.4.roundedToMultiple(of: 5)
+	//=> 5
+	```
+	*/
+	func roundedToMultiple<T: BinaryInteger>(
+		of value: T,
+		roundingRule: FloatingPointRoundingRule = .toNearestOrAwayFromZero
+	) -> Self {
+		let value = Self(value)
+		return (self / value).rounded(roundingRule) * value
+	}
+}
+
+
+enum Reachability {
+	/**
+	Checks whether we're currently online.
+	*/
+	static func isOnline(host: String = "apple.com") -> Bool {
+		guard let ref = SCNetworkReachabilityCreateWithName(nil, host) else {
+			return false
+		}
+
+		var flags = SCNetworkReachabilityFlags.connectionAutomatic
+		if !SCNetworkReachabilityGetFlags(ref, &flags) {
+			return false
+		}
+
+		return flags.contains(.reachable) && !flags.contains(.connectionRequired)
+	}
+
+	/**
+	Checks multiple sources of whether we're currently online.
+	*/
+	static func isOnlineExtensive() -> Bool {
+		let hosts = [
+			"apple.com",
+			"google.com",
+			"cloudflare.com",
+			"baidu.com",
+			"yandex.ru"
+		]
+
+		return hosts.contains { isOnline(host: $0) }
+	}
+}
+
+
+extension CLLocationCoordinate2D {
+	/**
+	Get the [geo URI](https://en.wikipedia.org/wiki/Geo_URI_scheme) for the coordiate.
+	*/
+	var geoURI: URL { URL(string: "geo:\(latitude),\(longitude)")! }
+}
+
+extension CLLocation {
+	/**
+	Get the [geo URI](https://en.wikipedia.org/wiki/Geo_URI_scheme) for the location, including accuracy.
+	*/
+	func geoURI(includeAccuracy: Bool) -> URL {
+		let geoURI = coordinate.geoURI
+
+		guard
+			includeAccuracy,
+			horizontalAccuracy >= 0
+		else {
+			return geoURI
+		}
+
+		return URL(string: "\(geoURI);u=\(Int(horizontalAccuracy))")!
+	}
+}
+
+
+extension CGImage {
+	var xImage: XImage { XImage(cgImage: self) }
+}
+
+
+extension XImage {
+	func resized(to newSize: CGSize) -> XImage {
+		#if canImport(AppKit)
+		return Self(size: newSize, flipped: false) {
+			self.draw(in: $0)
+			return true
+		}
+			.isTemplate(isTemplate)
+		#elseif canImport(UIKit)
+		return UIGraphicsImageRenderer(size: newSize).image { _ in
+			draw(in: CGRect(origin: .zero, size: newSize))
+		}
+			.withRenderingMode(renderingMode)
+		#endif
+	}
+}
+
+
+#if canImport(AppKit)
+extension NSImage {
+	/**
+	`UIImage` polyfill.
+	*/
+	var cgImage: CGImage? { cgImage(forProposedRect: nil, context: nil, hints: nil) }
+
+	/**
+	`UIImage` polyfill.
+	*/
+	convenience init(cgImage: CGImage) {
+		self.init(cgImage: cgImage, size: .zero)
+	}
+}
+
+extension NSImage {
+	/**
+	UIKit polyfill.
+	*/
+	convenience init?(systemName name: String) {
+		self.init(systemSymbolName: name, accessibilityDescription: nil)
+	}
+
+	/**
+	UIKit polyfill.
+
+	Makes it easier to pass in symbol configuration in a cross-platform manner.
+	*/
+	func withConfiguration(_ configuration: SymbolConfiguration) -> NSImage {
+		withSymbolConfiguration(configuration)! // Unclear how it can fail.
+	}
+}
+
+extension NSImage {
+	func normalizingImage() -> NSImage {
+		guard let image = cgImage?.xImage else {
+			return resized(to: size)
+		}
+
+		return image
+	}
+}
+
+extension NSImage {
+	/**
+	Toggle `.isTemplate` on the image.
+	*/
+	func isTemplate(_ isTemplate: Bool = true) -> Self {
+		self.isTemplate = isTemplate
+		return self
+	}
+}
+#endif
+
+
+enum Validators {
+	static func isIPv4(_ string: String) -> Bool {
+		IPv4Address(string) != nil
+	}
+
+	static func isIPv6(_ string: String) -> Bool {
+		IPv6Address(string) != nil
+	}
+
+	static func isIP(_ string: String) -> Bool {
+		isIPv4(string) || isIPv6(string)
+	}
+}
+
+
+extension URL {
+	/**
+	Create a URL from a human string, gracefully.
+
+	```
+	URL(humanString: "sindresorhus.com")?.absoluteString
+	//=> "https://sindresorhus.com"
+	```
+	*/
+	init?(humanString: String) {
+		let string = humanString.trimmed
+
+		guard
+			!string.isEmpty,
+			!string.hasPrefix("."),
+			!string.hasSuffix("."),
+			string != "https://",
+			string != "http://",
+			string != "file://"
+		else {
+			return nil
+		}
+
+		let hasScheme = Regex(#"^[a-z\d-]+:"#).isMatched(by: string) && !string.hasPrefix("localhost")
+
+		let isValid = string.contains(".")
+			|| string.hasPrefix("localhost")
+			|| hasScheme
+
+		guard isValid else {
+			return nil
+		}
+
+		let scheme = Validators.isIP(string) ? "http" : "https"
+		let url = hasScheme ? string : "\(scheme)://\(string)"
+
+		self.init(string: url)
+	}
+}
+
+
+extension URLSession {
+	/**
+	Throws an error if the given URL is not reachable.
+	*/
+	func checkIfReachable(
+		_ url: URL,
+		method: URLRequest.Method = .head,
+		timeout: TimeInterval = 10
+	) async throws {
+		var urlRequest = URLRequest(
+			method: method,
+			url: url,
+			timeout: timeout
+		)
+		urlRequest.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+
+		let (_, response) = try await URLSession.shared.data(for: urlRequest)
+		try response.throwIfHTTPResponseButNotSuccessStatusCode()
+	}
+
+	/**
+	Returns a boolean for whether the given URL is reachable.
+	*/
+	func isReachable(
+		_ url: URL,
+		method: URLRequest.Method = .head,
+		timeout: TimeInterval = 10
+	) async -> Bool {
+		do {
+			try await checkIfReachable(url)
+			return true
+		} catch {
+			return false
+		}
+	}
+}
+
+
+extension DataFrame.Row {
+	func toDictionary() -> [String: Any] {
+		var dictionary = [String: Any]()
+
+		for column in base.columns {
+			dictionary[column.name] = self[column.name]
+		}
+
+		return dictionary
+	}
+}
+
+extension DataFrame {
+	func toArray() -> [[String: Any]] {
+		rows.map { $0.toDictionary() }
+	}
+}
+
+
+extension Sequence {
+	func firstNonNil<Result>(
+		_ transform: (Element) throws -> Result?
+	) rethrows -> Result? {
+		for value in self {
+			if let value = try transform(value) {
+				return value
+			}
+		}
+		return nil
+	}
+}
+
+
+extension CIImage {
+	/**
+	Read QR codes in the image.
+
+	It's sorted by confidence, highest confidence first.
+	*/
+	func readQRCodes() -> [CIQRCodeFeature] {
+		guard
+			let detector = CIDetector(
+				ofType: CIDetectorTypeQRCode,
+				context: nil,
+				options: [
+					CIDetectorAccuracy: CIDetectorAccuracyHigh
+				]
+			)
+		else {
+			return []
+		}
+
+		var features = detector.features(in: self)
+
+		// If the image has transparency, the detector will replace the transparency with black, which means the black QR code will disappear. So if we have no matches, we try again with the colors inverted.
+		// Fixture: https://user-images.githubusercontent.com/713559/181952750-91804ebf-bc62-4346-8b60-a341c6d37c7e.png
+		if features.isEmpty {
+			let filter = CIFilter.colorInvert()
+			filter.inputImage = self
+
+			guard let outputImage = filter.outputImage else {
+				return []
+			}
+
+			features = detector.features(in: outputImage)
+		}
+
+		return features.compactMap { $0 as? CIQRCodeFeature }
+	}
+
+	/**
+	Read QR codes in the image and return their message.
+
+	It's sorted by confidence, highest confidence first.
+	*/
+	func readMessageForQRCodes() -> [String] {
+		readQRCodes().compactMap { $0.messageString?.nilIfEmptyOrWhitespace }
+	}
+}
+
+
+extension Data {
+	var toString: String? { String(data: self, encoding: .utf8) }
+}
+
+extension String {
+	var toData: Data { Data(utf8) }
+}
+
+
+extension Data {
+	/**
+	Pretty formats the JSON.
+	*/
+	func prettyFormatJSON() throws -> String {
+		let json = try JSONSerialization.jsonObject(with: self)
+		return try JSONSerialization.data(withJSONObject: json, options: .prettyPrinted).toString ?? ""
+	}
+}
+
+extension String {
+	/**
+	Pretty formats the JSON.
+	*/
+	func prettyFormatJSON() throws -> Self {
+		try toData.prettyFormatJSON()
+	}
+}
+
+
+extension StringProtocol {
+	/**
+	Removes the file extension from a filename.
+	*/
+	func removingFileExtension() -> String {
+		replacingOccurrences(of: #"\..*$"#, with: "", options: .regularExpression)
+	}
+}
+
+
+extension Data {
+	struct ParseJSONNonObjectError: LocalizedError {
+		let errorDescription = "The JSON must have a top-level object."
+	}
+
+	/**
+	Parses the JSON data into a dictionary.
+
+	- Throws: If the data is not valid JSON.
+	- Throws: If the JSON does not have a top-level object.
+	*/
+	func jsonToDictionary() throws -> [String: Any] {
+		let json = try JSONSerialization.jsonObject(with: self)
+
+		guard let dictionary = json as? [String: Any] else {
+			throw ParseJSONNonObjectError()
+		}
+
+		return dictionary
+	}
+}
+
+
+extension Dictionary {
+	/**
+	Convert the dictionary to a `INFIle` which will end up as a "Dictionary" type in Shortcuts.
+	*/
+	func toINFile(filename: String? = nil) throws -> INFile {
+		try JSONSerialization.data(withJSONObject: self, options: .prettyPrinted)
+			.toINFile(contentType: .json, filename: filename)
+	}
+}
+
+
+extension Dictionary {
+	static func + (lhs: [Key: Value], rhs: [Key: Value]) -> [Key: Value] {
+		var result = lhs
+		result += rhs
+		return result
+	}
+
+	static func += (lhs: inout [Key: Value], rhs: [Key: Value]) {
+		for (key, value) in rhs {
+			lhs[key] = value
+		}
+	}
+}
+
+
+#if canImport(UIKit)
+struct DocumentScannerView: UIViewControllerRepresentable {
+	final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
+		private let view: DocumentScannerView
+
+		init(_ view: DocumentScannerView) {
+			self.view = view
+		}
+
+		func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
+			let pages = (0..<scan.pageCount).map { scan.imageOfPage(at: $0) }
+
+			view.onCompletion(.success(pages))
+		}
+
+		func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
+			view.onCancel()
+		}
+
+		func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFailWithError error: Error) {
+			view.onCompletion(.failure(error))
+		}
+	}
+
+	var onCompletion: (Result<[UIImage], Error>) -> Void
+	var onCancel: () -> Void
+
+	func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
+		let scannerViewController = VNDocumentCameraViewController()
+		scannerViewController.delegate = context.coordinator
+		return scannerViewController
+	}
+
+	func updateUIViewController(_ uiViewController: VNDocumentCameraViewController, context: Context) {}
+
+	func makeCoordinator() -> Coordinator { .init(self) }
+}
+
+extension View {
+	/**
+	Presents the system document scanner.
+
+	When the operation is finished, `isPresented` will be set to `false` before `onCompletion` is called. If the user cancels the operation, `isPresented` will be set to `false` and `onCompletion` will not be called.
+	*/
+	func documentScanner(
+		isPresented: Binding<Bool>,
+		onCompletion: @escaping (Result<[UIImage], Error>) -> Void
+	) -> some View {
+		fullScreenCover(isPresented: isPresented) {
+			DocumentScannerView {
+				isPresented.wrappedValue = false
+				onCompletion($0)
+			} onCancel: {
+				isPresented.wrappedValue = false
+			}
+				.ignoresSafeArea()
+		}
+	}
+}
+#endif
+
+
+extension Binding {
+	func isPresent<Wrapped>() -> Binding<Bool> where Value == Wrapped? {
+		.init(
+			get: { wrappedValue != nil },
+			set: { isPresented in
+				if !isPresented {
+					wrappedValue = nil
+				}
+			}
+		)
+	}
+}
+
+
+extension Binding where Value: SetAlgebra, Value.Element: Hashable {
+	func contains<T>(_ element: T) -> Binding<Bool> where T == Value.Element {
+		.init(
+			get: { wrappedValue.contains(element) },
+			set: {
+				if $0 {
+					wrappedValue.insert(element)
+				} else {
+					wrappedValue.remove(element)
+				}
+			}
+		)
+	}
+}
+
+
+extension View {
+	func alert2<A, M, T>(
+		title: (T) -> Text,
+		presenting data: Binding<T?>,
+		@ViewBuilder actions: (T) -> A,
+		@ViewBuilder message: (T) -> M
+	) -> some View where A: View, M: View {
+		background(
+			EmptyView()
+				.alert(
+					data.wrappedValue.map(title) ?? Text(""),
+					isPresented: data.isPresent(),
+					presenting: data.wrappedValue,
+					actions: actions,
+					message: message
+				)
+		)
+	}
+
+	func alert2<A, T>(
+		title: (T) -> Text,
+		message: ((T) -> String?)? = nil,
+		presenting data: Binding<T?>,
+		@ViewBuilder actions: (T) -> A
+	) -> some View where A: View {
+		alert2(
+			title: { title($0) },
+			presenting: data,
+			actions: actions,
+			message: {
+				if let message = message?($0) {
+					Text(message)
+				}
+			}
+		)
+	}
+
+	func alert2<A, T>(
+		title: (T) -> String,
+		message: ((T) -> String?)? = nil,
+		presenting data: Binding<T?>,
+		@ViewBuilder actions: (T) -> A
+	) -> some View where A: View {
+		alert2(
+			title: { Text(title($0)) },
+			message: message,
+			presenting: data,
+			actions: actions
+		)
+	}
+
+	func alert2<T>(
+		title: (T) -> Text,
+		message: ((T) -> String?)? = nil,
+		presenting data: Binding<T?>
+	) -> some View {
+		alert2(  // swiftlint:disable:this trailing_closure
+			title: title,
+			message: message,
+			presenting: data,
+			actions: { _ in }
+		)
+	}
+
+	func alert2<T>(
+		title: (T) -> String,
+		message: ((T) -> String?)? = nil,
+		presenting data: Binding<T?>
+	) -> some View {
+		alert2(
+			title: { Text(title($0)) },
+			message: message,
+			presenting: data
+		)
+	}
+}
+
+
+extension View {
+	func alert(error: Binding<Error?>) -> some View {
+		alert2(
+			title: { ($0 as NSError).localizedDescription },
+			message: { ($0 as NSError).localizedRecoverySuggestion },
+			presenting: error
+		)
+	}
+}
+
+
+extension SFSpeechRecognizer {
+	func recognitionTask(with request: SFSpeechRecognitionRequest) async throws -> SFSpeechRecognitionResult {
+		request.shouldReportPartialResults = false
+
+		var task: SFSpeechRecognitionTask?
+
+		return try await withTaskCancellationHandler {
+			try await withCheckedThrowingContinuation { continuation in
+				task = recognitionTask(with: request) { result, error in
+					if let error = error {
+						continuation.resume(throwing: error)
+						return
+					}
+
+					guard let result = result else {
+						assertionFailure()
+						return
+					}
+
+					// `.isFinal` can be `false` even when `.shouldReportPartialResults = false`.
+					guard result.isFinal else {
+						return
+					}
+
+					continuation.resume(returning: result)
+				}
+			}
+		} onCancel: { [task] in
+			task?.cancel()
+		}
+	}
+}
+
+
+extension SFSpeechRecognizer {
+	static func requestAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
+		await withCheckedContinuation { continuation in
+			requestAuthorization {
+				continuation.resume(returning: $0)
+			}
+		}
+	}
+}
+
+
+extension URL {
+	var filename: String {
+		get { lastPathComponent }
+		set {
+			deleteLastPathComponent()
+			appendPathComponent(newValue, isDirectory: false)
+		}
+	}
+
+	var filenameWithoutExtension: String {
+		get { deletingPathExtension().lastPathComponent }
+		set {
+			let fileExtension = pathExtension
+			deleteLastPathComponent()
+			appendPathComponent(newValue, isDirectory: false)
+			appendPathExtension(fileExtension)
+		}
+	}
+}
+
+
+extension XScreen {
+	/**
+	The size of the screen multiplied by its scale factor.
+	*/
+	var nativeSize: CGSize {
+		#if canImport(AppKit)
+		frame.size * backingScaleFactor
+		#elseif canImport(UIKit)
+		nativeBounds.size
+		#endif
+	}
+}
+
+
+extension URLSession {
+	/**
+	Improvements over `.download()`:
+	- Throws on non-2XX responses
+	- Downloads to unique location
+	- Uses the suggested filename instead of the default `CFNetwork_4234.tmp` filename
+	- Retries
+	*/
+	func betterDownload(
+		for request: URLRequest,
+		maximumRetryCount: Int = 3
+	) async throws -> (url: URL, response: URLResponse) {
+		var retryCount = 0
+
+		func run() async throws -> (URL, URLResponse) {
+			let (fileURL, response) = try await download(for: request)
+
+			do {
+				try response.throwIfHTTPResponseButNotSuccessStatusCode()
+			} catch {
+				if retryCount < maximumRetryCount {
+					retryCount += 1
+					return try await run()
+				}
+
+				throw error
+			}
+
+			return (fileURL, response)
+		}
+
+		let (fileURL, response) = try await run()
+
+		let newFileURL = try fileURL.copyToUniqueTemporaryDirectory(filename: response.suggestedFilename)
+
+		return (newFileURL, response)
+	}
+
+	func betterDownload(
+		from url: URL,
+		maximumRetryCount: Int = 3
+	) async throws -> (url: URL, response: URLResponse) {
+		try await betterDownload(
+			for: .init(url: url),
+			maximumRetryCount: maximumRetryCount
+		)
+	}
+}
+
+
+#if canImport(AppKit)
+extension NSPasteboard {
+	/**
+	UIKit polyfill.
+	*/
+	var string: String? {
+		get { string(forType: .string) }
+		set {
+			prepareForNewContents()
+
+			guard let string = newValue else {
+				return
+			}
+
+			setString(string, forType: .string)
+		}
+	}
+
+	/**
+	UIKit polyfill.
+	*/
+	var strings: [String]? { // swiftlint:disable:this discouraged_optional_collection
+		get {
+			pasteboardItems?.compactMap { $0.string(forType: .string) }
+		}
+		set {
+			prepareForNewContents()
+
+			guard let strings = newValue else {
+				return
+			}
+
+			let items = strings.map { string -> NSPasteboardItem in
+				let item = NSPasteboardItem()
+				item.setString(string, forType: .string)
+				return item
+			}
+
+			writeObjects(items)
+		}
+	}
+}
+#endif
+
+
+extension XPasteboard {
+	/**
+	On macOS, the pasteboard contents are available only on the current device, and not on any other devices.
+	On iOS, there's no way to prevent sharing with Universal Clipboard.
+	*/
+	var stringForCurrentHostOnly: String? {
+		get { string }
+		set {
+			#if canImport(AppKit)
+			prepareForNewContents(with: .currentHostOnly)
+
+			guard let string = newValue else {
+				return
+			}
+
+			setString(string, forType: .string)
+			#else
+			string = newValue
+			#endif
+		}
+	}
+
+	/**
+	On macOS, the pasteboard contents are available only on the current device, and not on any other devices.
+	On iOS, there's no way to prevent sharing with Universal Clipboard.
+	*/
+	var stringsForCurrentHostOnly: [String] {
+		get { strings ?? [] }
+		set {
+			#if canImport(AppKit)
+			prepareForNewContents(with: .currentHostOnly)
+
+			guard let strings = newValue.nilIfEmpty else {
+				return
+			}
+
+			let items = strings.map { string -> NSPasteboardItem in
+				let item = NSPasteboardItem()
+				item.setString(string, forType: .string)
+				return item
+			}
+
+			writeObjects(items)
+			#else
+			strings = newValue
+			#endif
+		}
+	}
+}
+
+
+#if canImport(AppKit)
+struct SearchField: NSViewRepresentable {
+	typealias NSViewType = CocoaSearchField
+
+	final class CocoaSearchField: NSSearchField {
+		override func viewDidMoveToWindow() {
+			window?.makeFirstResponder(self)
+		}
+	}
+
+	final class Coordinator: NSObject, NSSearchFieldDelegate {
+		var view: SearchField
+
+		init(_ view: SearchField) {
+			self.view = view
+		}
+
+		func controlTextDidChange(_ notification: Notification) {
+			guard let textField = notification.object as? CocoaSearchField else {
+				return
+			}
+
+			view.text = textField.stringValue
+		}
+	}
+
+	@Binding var text: String
+	var drawsBackground = true
+	var placeholder: String?
+	var fontSize: Double?
+
+	func makeCoordinator() -> Coordinator { .init(self) }
+
+	func makeNSView(context: Context) -> NSViewType {
+		let nsView = CocoaSearchField()
+		nsView.wantsLayer = true
+		nsView.translatesAutoresizingMaskIntoConstraints = false
+		nsView.setContentHuggingPriority(.defaultHigh, for: .vertical)
+		nsView.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+		nsView.delegate = context.coordinator
+		return nsView
+	}
+
+	func updateNSView(_ nsView: NSViewType, context: Context) {
+		nsView.drawsBackground = drawsBackground
+		nsView.placeholderString = placeholder
+
+		if text != nsView.stringValue {
+			nsView.stringValue = text
+		}
+
+		if let fontSize = fontSize {
+			nsView.font = .systemFont(ofSize: fontSize)
+		}
+	}
+}
+#endif
+
+
+struct NavigationLinkButtonStyle: PrimitiveButtonStyle {
+	func makeBody(configuration: Configuration) -> some View {
+		NavigationLink(
+			isActive: .init(
+				get: { false },
+				set: {
+					if $0 {
+						configuration.trigger()
+					}
+				}),
+			destination: {}
+		) {
+			configuration.label
+		}
+	}
+}
+
+extension PrimitiveButtonStyle where Self == NavigationLinkButtonStyle {
+	/**
+	Make the button look like a `NavigationLink`.
+	*/
+	static var navigationLink: Self { .init() }
+}
+
+
+extension Button where Label == SwiftUI.Label<Text, Image> {
+	init(
+		_ title: String,
+		systemImage: String,
+		role: ButtonRole? = nil,
+		action: @escaping () -> Void
+	) {
+		self.init(
+			role: role,
+			action: action
+		) {
+			Label(title, systemImage: systemImage)
+		}
+	}
+}
+
+
+extension NLLanguage: CaseIterable {
+	public static let allCases: [Self] = [
+		.amharic,
+		.arabic,
+		.armenian,
+		.bengali,
+		.bulgarian,
+		.burmese,
+		.catalan,
+		.cherokee,
+		.croatian,
+		.czech,
+		.danish,
+		.dutch,
+		.english,
+		.finnish,
+		.french,
+		.georgian,
+		.german,
+		.greek,
+		.gujarati,
+		.hebrew,
+		.hindi,
+		.hungarian,
+		.icelandic,
+		.indonesian,
+		.italian,
+		.japanese,
+		.kannada,
+		.khmer,
+		.korean,
+		.lao,
+		.malay,
+		.malayalam,
+		.marathi,
+		.mongolian,
+		.norwegian,
+		.oriya,
+		.persian,
+		.polish,
+		.portuguese,
+		.punjabi,
+		.romanian,
+		.russian,
+		.simplifiedChinese,
+		.sinhalese,
+		.slovak,
+		.spanish,
+		.swedish,
+		.tamil,
+		.telugu,
+		.thai,
+		.tibetan,
+		.traditionalChinese,
+		.turkish,
+		.ukrainian,
+		.urdu,
+		.vietnamese
+	]
+}
+
+
+extension NLLanguage {
+	var localizedName: String {
+		Locale.current.localizedString(forIdentifier: rawValue) ?? ""
+	}
+}
+
+
+extension NLEmbedding {
+	static var supportedLanguage = NLLanguage.allCases
+		.filter { !supportedRevisions(for: $0).isEmpty }
+}
+
+
+extension Collection {
+	/**
+	Get unique random indices in the collection.
+
+	- Parameter maxCount: Must be 0 or larger.
+	*/
+	func uniqueRandomIndices<T>(maxCount: Int, using generator: inout T) -> [Index] where T: RandomNumberGenerator {
+		assert(maxCount >= 0)
+
+		// Remove the `Array` wrapper and return `some Collection<Index>` when targeting Swift 5.7.
+		return Array(indices.shuffled(using: &generator).prefix(maxCount))
+	}
+
+	/**
+	Get unique random indices in the collection.
+
+	- Parameter maxCount: Must be 0 or larger.
+	*/
+	func uniqueRandomIndices(maxCount: Int) -> [Index] {
+		uniqueRandomIndices(maxCount: maxCount, using: &.system)
+	}
+}
+
+
+#if canImport(UIKit)
+extension UIDevice {
+	private static func getOrientation(for data: CMAccelerometerData) -> UIDeviceOrientation {
+		let absAccelerationX = abs(data.acceleration.x)
+		let absAccelerationY = abs(data.acceleration.y)
+		let absAccelerationZ = abs(data.acceleration.z)
+
+		if absAccelerationZ > max(absAccelerationX, absAccelerationY) {
+			return data.acceleration.z < 0 ? .faceUp : .faceDown
+		} else if absAccelerationX > absAccelerationY {
+			return data.acceleration.x > 0 ? .landscapeRight : .landscapeLeft
+		} else if absAccelerationX < absAccelerationY {
+			return data.acceleration.y < 0 ? .portrait : .portraitUpsideDown
+		}
+
+		return .unknown
+	}
+
+	func orientationStream(interval: TimeInterval) -> AsyncThrowingStream<UIDeviceOrientation, Error> {
+		.init { continuation in
+			let motionManager = CMMotionManager()
+
+			guard motionManager.isDeviceMotionAvailable else {
+				continuation.finish(throwing: NSError.appError("This device does not provide orientation info."))
+				return
+			}
+
+			motionManager.accelerometerUpdateInterval = interval
+
+			motionManager.startAccelerometerUpdates(to: OperationQueue()) { data, error in
+				if let error = error {
+					continuation.finish(throwing: error)
+					return
+				}
+
+				guard let data = data else {
+					continuation.yield(.unknown)
+					return
+				}
+
+				continuation.yield(Self.getOrientation(for: data))
+			}
+
+			continuation.onTermination = { [motionManager] _ in
+				motionManager.stopAccelerometerUpdates()
+			}
+		}
+	}
+
+	var orientationBetter: UIDeviceOrientation {
+		get async throws {
+			(try await orientationStream(interval: 0.001).first { _ in true }) ?? .unknown
+		}
+	}
+}
+
+extension UIDeviceOrientation: CustomStringConvertible {
+	public var description: String {
+		switch self {
+		case .faceDown:
+			return "faceDown"
+		case .faceUp:
+			return "faceUp"
+		case .landscapeLeft:
+			return "landscapeLeft"
+		case .landscapeRight:
+			return "landscapeRight"
+		case .portrait:
+			return "portrait"
+		case .portraitUpsideDown:
+			return "portraitUpsideDown"
+		case .unknown:
+			return "unknown"
+		@unknown default:
+			assertionFailure()
+			return "unknown"
+		}
+	}
+}
+#endif
+
+
+extension Locale {
+	/**
+	The identifier browsers use.
+
+	This differs from `.identifier` by using a dash instead of underscore.
+
+	https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl#locale_identification_and_negotiation
+	*/
+	var bcp47Identifier: String {
+		identifier.replacingOccurrences(of: "_", with: "-")
+	}
+}
+
+
+extension Double {
+	/**
+	Formats the number with compact style.
+
+	```
+	let number = 12345591313.0
+
+	print(number.formatWithCompactStyle())
+	//=> "12 billion"
+	```
+	*/
+	func formatWithCompactStyle(
+		abbreviatedUnit: Bool = false,
+		locale: Locale = .current
+	) -> String? {
+		guard let context = JSContext() else {
+			return nil
+		}
+
+		context.exceptionHandler = { _, exception in
+			assertionFailure(exception?.toString() ?? "")
+		}
+
+		// TODO: Setting `minimumFractionDigits: 1, maximumFractionDigits: 1,` seems to have no effect and does not preserve one fraction digit. (macOS 12.3.1)
+		// I can set `roundingPriority: 'morePrecision'`, but then it shows all the fraction digits.
+
+		context.evaluateScript(
+			"""
+			function format(number, abbreviatedUnit, locale) {
+			   return new Intl.NumberFormat(locale, {
+				   notation: 'compact',
+				   compactDisplay: abbreviatedUnit ? 'short' : 'long'
+			   }).format(number);
+			}
+			"""
+		)
+
+		let format = context.objectForKeyedSubscript("format")
+
+		return format?.call(withArguments: [self, abbreviatedUnit, locale.bcp47Identifier]).toString()
+	}
+}

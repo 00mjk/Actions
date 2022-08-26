@@ -37,9 +37,8 @@ struct WelcomeScreen: View {
 				.dynamicTypeSize(...(Device.hasSmallScreen ? .accessibility3 : .accessibility4))
 			Spacer()
 			#if canImport(AppKit)
-			Text("Want an action to get your internet speed? Check out [Speediness](https://apps.apple.com/app/id1596706466)")
+			Link("Want even more actions?", destination: "https://github.com/sindresorhus/Actions#looking-for-more")
 				.controlSize(.small)
-				.padding(.bottom)
 			#endif
 			Button("Send Feedback") {
 				SSApp.openSendFeedbackPage()
@@ -67,7 +66,14 @@ struct WelcomeScreen: View {
 			#endif
 			.task {
 				#if DEBUG
-				openShortcutsApp()
+					#if canImport(AppKit)
+					// Don't quit app when using in-app intent.
+					if NSApp.activationPolicy() == .regular {
+						openShortcutsApp()
+					}
+					#elseif canImport(UIKit)
+					openShortcutsApp()
+					#endif
 				#endif
 			}
 	}

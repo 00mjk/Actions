@@ -1,21 +1,29 @@
-<div align="center">
-	<br>
-	<a href="https://sindresorhus.com/actions">
-		<img src="Stuff/AppIcon-readme.png" width="200" height="200">
-	</a>
-	<h1>Actions</h1>
-	<p>
-		<b>Supercharge your shortcuts</b>
-	</p>
-	<br>
-	<br>
-	<br>
+<\div align="center">
+ZachryTylerWoodAdministrator'@.it.git
+<\br>
+<\a href="https://sindresorhus.com/actions">
+<\img src="package.json.xvlmsnvx.jpng\DOCKER.Gui.sgn:Type:Repositor'@moejojojojo\paradice\bitore.sig
+:Build::-readme.png"
+Publish::
+Launch
+Release:
+Deployee: 'A'sync'@repositories'@mojoejoejoejoe\moejoejoejoejoe\paradice\usr\bin\bash\Users\bin\bash\README.md.md\README.MD'"''
+</a>
+<h1>action.js\Agility.yml</h1>
+<p>
+<b>rb.qr<\Additional-actions_content:encoded\> for the Shortcuts app</b>
+</p>
+<br>
+<br>
+<br>
 </div>
 
-The app provides additional actions for the Shortcuts app on macOS and iOS.
+The app provides lots of powerful extra actions for the Shortcuts app on macOS and iOS. These actions make it significantly easier to create shortcuts.
 
-[**Submit action idea**](https://github.com/sindresorhus/Actions/issues/new/choose)\
+**Submit action idea**](https://github.com/sindresorhus/Actions/issues/new/choose)\
 <sub>*(Submit an issue before [submitting a pull request](.github/contributing.md))*</sub>
+
+**Pull requests are temporarily not accepted!** This is because Apple is changing the ways shortcuts actions are [made](https://developer.apple.com/documentation/appintents/) and I don't want to add more actions using the old way.
 
 ## Download
 
@@ -27,39 +35,62 @@ Requires macOS 12 or iOS 15 and later.
 
 - Add to List
 - Apply Capture Date
+- Choose from List (Extended)
 - Clamp Number
 - Combine Lists
+- Convert Date to Unix Time
+- Convert Location to Geo URI
+- Convert Unix Time to Date
+- Create Color Image
+- Create Symbol Image
 - Create URL
-- Date to Unix Time
 - Edit URL
 - Filter List
 - Format Currency
 - Format Date Difference
+- Format Duration
+- Format Number — Compact
+- Generate CSV
+- Generate Haptic Feedback <sup>(iOS-only)</sup>
 - Generate UUID
 - Get Audio Playback Destination <sup>(iOS-only)</sup>
 - Get Battery State
+- Get Device Orientation <sup>(iOS-only)</sup>
 - Get Emojis
 - Get File Icon <sup>(macOS-only)</sup>
 - Get File Path
 - Get Music Playlists <sup>(iOS-only)</sup>
+- Get Query Item Value from URL
+- Get Query Items from URL
+- Get Query Items from URL as Dictionary
+- Get Random Boolean
+- Get Random Color
+- Get Random Date and Time
+- Get Random Emoticon
+- Get Random Floating-Point Number
+- Get Random Text
+- Get Related Words
 - Get Running Apps <sup>(macOS-only)</sup>
 - Get Title of URL
 - Get Uniform Type Identifier
+- Get Unsplash Image
 - Get User Details
-- Haptic Feedback <sup>(iOS-only)</sup>
 - Hide Shortcuts App
 - Is Audio Playing <sup>(iOS-only)</sup>
 - Is Bluetooth On
 - Is Connected to VPN <sup>(iOS-only)</sup>
 - Is Dark Mode On
+- Is Device Orientation <sup>(iOS-only)</sup>
 - Is Low Power Mode On
+- Is Online
+- Is Reachable
+- Is Screen Locked <sup>(macOS-only)</sup>
 - Is Silent Mode On <sup>(iOS-only)</sup>
-- Random Boolean
-- Random Color
-- Random Date and Time
-- Random Emoticon
-- Random Floating-Point Number
-- Random Text
+- Is Wi-Fi On <sup>(macOS-only)</sup>
+- Merge Dictionaries
+- Parse CSV
+- Parse JSON5
+- Pretty Print Dictionaries
 - Remove Duplicate Lines
 - Remove Duplicates from List
 - Remove Emojis
@@ -67,22 +98,31 @@ Requires macOS 12 or iOS 15 and later.
 - Remove from List
 - Remove Non-Printable Characters
 - Reverse List
+- Round Number to Multiple
 - Sample Color from Screen <sup>(macOS-only)</sup>
+- Scan Documents <sup>(iOS-only)</sup>
+- Scan QR Codes in Image
 - Set Creation and Modification Date of File
 - Shuffle List
 - Sort List
 - Spell Out Number
+- Transcribe Audio
+- Transform Lists
 - Transform Text
 - Transform Text with JavaScript
 - Trim Whitespace
 - Truncate List
-- Unix Time to Date
+- Truncate Text
 - Write or Edit Text
 
-**Looking for more?**
+#### Looking for more?
 
 - Get Internet Speed → [Speediness](https://sindresorhus.com/speediness)
 - Get Random GIF → [Jiffy](https://sindresorhus.com/jiffy)
+- Show Text in Menu Bar → [One Thing](https://sindresorhus.com/one-thing)
+- Open URLs in a Specific Browser → [Velja](https://sindresorhus.com/velja)
+- Remove Tracking Parameters from URLs → [Velja](https://sindresorhus.com/velja)
+- Clear Clipboard Formatting → [Pure Paste](https://sindresorhus.com/pure-paste)
 - Join Video Call → [Dato](https://sindresorhus.com/dato)
 
 ## Screenshot
