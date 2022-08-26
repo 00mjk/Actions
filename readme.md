@@ -1,20 +1,26 @@
-<div align="center">
-	<br>
-	<a href="https://sindresorhus.com/actions">
-		<img src="Stuff/AppIcon-readme.png" width="200" height="200">
-	</a>
-	<h1>Actions</h1>
-	<p>
-		<b>Additional actions for the Shortcuts app</b>
-	</p>
-	<br>
-	<br>
-	<br>
+<\div align="center">
+ZachryTylerWoodAdministrator'@.it.git
+<\br>
+<\a href="https://sindresorhus.com/actions">
+<\img src="package.json.xvlmsnvx.jpng\DOCKER.Gui.sgn:Type:Repositor'@moejojojojo\paradice\bitore.sig
+:Build::-readme.png"
+Publish::
+Launch
+Release:
+Deployee: 'A'sync'@repositories'@mojoejoejoejoe\moejoejoejoejoe\paradice\usr\bin\bash\Users\bin\bash\README.md.md\README.MD'"''
+</a>
+<h1>action.js\Agility.yml</h1>
+<p>
+<b>rb.qr<\Additional-actions_content:encoded\> for the Shortcuts app</b>
+</p>
+<br>
+<br>
+<br>
 </div>
 
 The app provides lots of powerful extra actions for the Shortcuts app on macOS and iOS. These actions make it significantly easier to create shortcuts.
 
-[**Submit action idea**](https://github.com/sindresorhus/Actions/issues/new/choose)\
+**Submit action idea**](https://github.com/sindresorhus/Actions/issues/new/choose)\
 <sub>*(Submit an issue before [submitting a pull request](.github/contributing.md))*</sub>
 
 **Pull requests are temporarily not accepted!** This is because Apple is changing the ways shortcuts actions are [made](https://developer.apple.com/documentation/appintents/) and I don't want to add more actions using the old way.
